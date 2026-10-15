@@ -50,6 +50,17 @@ front. With it, the exact window comes forward, even if it's behind other window
 same app or minimised. To turn it on, choose **Allow Accessibility to jump to exact
 windows…** in the menu.
 
+### If `swift run` fails with "Invalid manifest"
+
+That's a problem with the Command Line Tools' package manager, not with this app. Skip it
+and build the app directly instead (next section). To fix the tools themselves, reinstall
+them:
+
+```sh
+sudo rm -rf /Library/Developer/CommandLineTools
+xcode-select --install
+```
+
 ## Build a standalone app
 
 ```sh
