@@ -9,6 +9,8 @@ struct AppWindow: Equatable {
     let title: String
     /// Global display coordinates, origin at the top-left of the primary display.
     let bounds: CGRect
+    /// False while minimised or on another desktop.
+    let isOnScreen: Bool
 
     var displayName: String { title.isEmpty ? ownerName : title }
 
@@ -67,7 +69,8 @@ enum WindowCatalog {
             ownerPID: pid,
             ownerName: entry[kCGWindowOwnerName as String] as? String ?? "",
             title: entry[kCGWindowName as String] as? String ?? "",
-            bounds: bounds
+            bounds: bounds,
+            isOnScreen: entry[kCGWindowIsOnscreen as String] as? Bool ?? false
         )
     }
 }

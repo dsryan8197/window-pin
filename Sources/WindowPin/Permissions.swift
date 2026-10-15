@@ -3,9 +3,9 @@ import ApplicationServices
 import CoreGraphics
 
 /// The macOS permissions the app uses:
-/// - Screen Recording (required), to show a live view of another app's window.
-/// - Accessibility (optional), to bring the exact pinned window forward on double-click.
-///   Without it, the window's app is brought forward instead.
+/// - Screen Recording, to show the live copy of a pinned window.
+/// - Accessibility, to bring the exact pinned window forward and pass your click on to it
+///   when you click its copy. Without it, only the window's app comes forward.
 enum Permissions {
     static var hasScreenRecording: Bool { CGPreflightScreenCaptureAccess() }
 

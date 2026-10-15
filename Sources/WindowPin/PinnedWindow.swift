@@ -3,8 +3,13 @@ import CoreMedia
 import CoreVideo
 import ScreenCaptureKit
 
-/// A small always-on-top panel showing a live view of another app's window.
-final class PinnedWindow: NSObject, NSWindowDelegate, SCStreamOutput, SCStreamDelegate {
+/// Keeps another app's window visible on top of everything.
+///
+/// macOS doesn't let one app keep another app's real window on top, so this lays a live,
+/// same-size copy exactly over the real window whenever the real one isn't in front. Clicking
+/// the copy hides it, brings the real window forward and passes the click on, so you work in
+/// the real window. When you click back into another window, the copy covers it again.
+final class PinnedWindow: NSObject, SCStreamOutput, SCStreamDelegate {
     let target: AppWindow
     var onClose: ((PinnedWindow) -> Void)?
 
@@ -14,35 +19,39 @@ final class PinnedWindow: NSObject, NSWindowDelegate, SCStreamOutput, SCStreamDe
     private let frameQueue = DispatchQueue(label: "window-pin.frames")
     private var stream: SCStream?
     private var watchTimer: Timer?
+    private var activationObserver: NSObjectProtocol?
     private var capturedSize: CGSize
+    private var hasFrame = false
+    /// After handing off to the real window, give it a moment to come forward before the
+    /// copy is allowed to cover it again.
+    private var hiddenUntil = Date.distantPast
     private var isClosed = false
 
-    init(target: AppWindow, scWindow: SCWindow, cascadeIndex: Int) {
+    init(target: AppWindow, scWindow: SCWindow) {
         self.target = target
         self.scWindow = scWindow
         capturedSize = target.bounds.size
 
         panel = NSPanel(
-            contentRect: Self.initialFrame(for: target.bounds.size, cascadeIndex: cascadeIndex),
-            styleMask: [.titled, .closable, .resizable, .utilityWindow, .hudWindow, .nonactivatingPanel],
+            contentRect: Self.cocoaFrame(for: target.bounds),
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         super.init()
 
-        panel.title = target.displayName
         panel.level = .floating
         panel.isFloatingPanel = true
         // This app is never the active one, so the panel must not hide when it isn't.
         panel.hidesOnDeactivate = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.collectionBehavior = [.fullScreenAuxiliary, .ignoresCycle]
         panel.isReleasedWhenClosed = false
-        panel.contentAspectRatio = target.bounds.size
-        panel.contentMinSize = NSSize(width: 120, height: 80)
-        panel.delegate = self
         panel.contentView = preview
 
-        preview.onDoubleClick = { [weak self] in self?.goToWindow() }
+        preview.onClick = { [weak self] in self?.handOffClick() }
         preview.menu = makeContextMenu()
     }
 
@@ -63,32 +72,79 @@ final class PinnedWindow: NSObject, NSWindowDelegate, SCStreamOutput, SCStreamDe
             DispatchQueue.main.async { self?.close() }
         }
 
-        panel.orderFrontRegardless()
-
-        // Follow the original window's size, and unpin it once it closes.
-        watchTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            self?.checkOriginal()
+        watchTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.update()
+        }
+        // React to app switches straight away rather than on the next tick.
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.update()
         }
     }
 
-    func bringToFront() {
-        panel.orderFrontRegardless()
-    }
-
     func close() {
-        panel.close()
-        tearDown()
-    }
-
-    /// Runs once, whether the panel was closed from its close button or from a menu.
-    private func tearDown() {
         guard !isClosed else { return }
         isClosed = true
         watchTimer?.invalidate()
         watchTimer = nil
+        if let activationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
+        }
         stream?.stopCapture(completionHandler: nil)
         stream = nil
+        panel.close()
         onClose?(self)
+    }
+
+    // MARK: Showing and hiding the copy
+
+    /// Covers the real window with the copy whenever the real window isn't the front one.
+    private func update() {
+        guard !isClosed else { return }
+        guard let current = WindowCatalog.window(id: target.id) else {
+            debugLog("\(target.menuTitle) closed")
+            close()
+            return
+        }
+        followSize(current.bounds.size)
+
+        let isFront = WindowCatalog.frontWindow()?.id == target.id
+        let shouldShow = hasFrame && current.isOnScreen && !isFront && Date() >= hiddenUntil
+        if shouldShow {
+            let frame = Self.cocoaFrame(for: current.bounds)
+            if panel.frame != frame { panel.setFrame(frame, display: true) }
+            if !panel.isVisible { panel.orderFrontRegardless() }
+        } else if panel.isVisible {
+            panel.orderOut(nil)
+        }
+    }
+
+    /// Hides the copy, brings the real window forward, and repeats the click on it.
+    private func handOffClick() {
+        let location = NSEvent.mouseLocation
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        let point = CGPoint(x: location.x, y: primaryHeight - location.y)
+
+        hiddenUntil = Date().addingTimeInterval(0.6)
+        panel.orderOut(nil)
+        WindowFocus.bringToFront(target)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self, !self.isClosed, Permissions.hasAccessibility,
+                  let front = WindowCatalog.frontWindow(), front.id == self.target.id,
+                  front.bounds.contains(point)
+            else { return }
+            Self.postClick(at: point)
+        }
+    }
+
+    private static func postClick(at point: CGPoint) {
+        let source = CGEventSource(stateID: .hidSystemState)
+        for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+            CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left)?
+                .post(tap: .cghidEventTap)
+        }
     }
 
     // MARK: Capture
@@ -114,7 +170,12 @@ final class PinnedWindow: NSObject, NSWindowDelegate, SCStreamOutput, SCStreamDe
               let surface = CVPixelBufferGetIOSurface(pixelBuffer)?.takeUnretainedValue()
         else { return }
         DispatchQueue.main.async { [weak self] in
-            self?.preview.show(surface)
+            guard let self else { return }
+            self.preview.show(surface)
+            if !self.hasFrame {
+                self.hasFrame = true
+                self.update()
+            }
         }
     }
 
@@ -123,49 +184,26 @@ final class PinnedWindow: NSObject, NSWindowDelegate, SCStreamOutput, SCStreamDe
         DispatchQueue.main.async { [weak self] in self?.close() }
     }
 
-    private func checkOriginal() {
-        guard let current = WindowCatalog.window(id: target.id) else {
-            debugLog("\(target.menuTitle) closed")
-            close()
-            return
-        }
-        let size = current.bounds.size
+    private func followSize(_ size: CGSize) {
         guard size.width >= 1, size.height >= 1,
               abs(size.width - capturedSize.width) > 1 || abs(size.height - capturedSize.height) > 1
         else { return }
-
         capturedSize = size
         stream?.updateConfiguration(Self.configuration(for: size)) { error in
             if let error { debugLog("couldn't follow resize: \(error)") }
         }
-        let width = panel.contentLayoutRect.width
-        panel.contentAspectRatio = size
-        panel.setContentSize(NSSize(width: width, height: width * size.height / size.width))
     }
 
-    // MARK: Panel
-
-    /// A small panel in the bottom-right corner of the main screen, scaled to the window's shape.
-    private static func initialFrame(for size: CGSize, cascadeIndex: Int) -> NSRect {
-        let maxSize = CGSize(width: 360, height: 300)
-        let scale = min(maxSize.width / max(size.width, 1), maxSize.height / max(size.height, 1), 1)
-        let contentSize = CGSize(width: max(120, size.width * scale), height: max(80, size.height * scale))
-        let visible = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let offset = CGFloat(cascadeIndex % 6) * 28
-        return NSRect(
-            x: visible.maxX - contentSize.width - 20 - offset,
-            y: visible.minY + 20 + offset,
-            width: contentSize.width,
-            height: contentSize.height
-        )
+    /// Converts a top-left-origin global rect to AppKit's bottom-left-origin coordinates.
+    private static func cocoaFrame(for rect: CGRect) -> NSRect {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        return NSRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
     }
+
+    // MARK: Context menu
 
     private func makeContextMenu() -> NSMenu {
         let menu = NSMenu()
-
-        let goItem = NSMenuItem(title: "Go to Window", action: #selector(goToWindow), keyEquivalent: "")
-        goItem.target = self
-        menu.addItem(goItem)
 
         let opacityItem = NSMenuItem(title: "Opacity", action: nil, keyEquivalent: "")
         let opacityMenu = NSMenu()
@@ -186,10 +224,6 @@ final class PinnedWindow: NSObject, NSWindowDelegate, SCStreamOutput, SCStreamDe
         return menu
     }
 
-    @objc private func goToWindow() {
-        WindowFocus.bringToFront(target)
-    }
-
     @objc private func setOpacity(_ sender: NSMenuItem) {
         panel.alphaValue = CGFloat(sender.tag) / 100
         sender.menu?.items.forEach { $0.state = $0 === sender ? .on : .off }
@@ -198,21 +232,16 @@ final class PinnedWindow: NSObject, NSWindowDelegate, SCStreamOutput, SCStreamDe
     @objc private func unpin() {
         close()
     }
-
-    func windowWillClose(_ notification: Notification) {
-        tearDown()
-    }
 }
 
-/// Shows the latest captured frame, scaled to fit.
+/// Shows the latest captured frame, filling the view.
 private final class PreviewView: NSView {
-    var onDoubleClick: (() -> Void)?
+    var onClick: (() -> Void)?
     private let contentLayer = CALayer()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        contentLayer.contentsGravity = .resizeAspect
-        contentLayer.backgroundColor = NSColor.black.cgColor
+        contentLayer.contentsGravity = .resize
         layer = contentLayer
         wantsLayer = true
     }
@@ -228,11 +257,13 @@ private final class PreviewView: NSView {
         CATransaction.commit()
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 2 {
-            onDoubleClick?()
-        } else {
-            super.mouseDown(with: event)
-        }
+        onClick?()
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        onClick?()
     }
 }

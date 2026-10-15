@@ -1,13 +1,15 @@
 # Window Pin
 
-A small Mac menu bar app for when you keep switching between two windows. Pin any window
-and a small live copy of it floats on top of everything, so you can keep an eye on it while
-you work in another app.
+A small Mac menu bar app for when you keep switching between two windows. Pin a window and
+it stays on top of everything, so you can keep a small window over a big one and still
+click and type in both.
 
-- **Live.** The pinned copy updates as the original changes: a video call, a build log, a
-  chat, a dashboard, notes you're copying from.
-- **Stays out of the way.** It floats above other windows on every Space, including
-  full-screen apps. Clicking it doesn't take focus from the app you're typing in.
+- **Size it how you like.** Make the window you want to pin small and put it where you want
+  it, then pin it.
+- **Stays on top.** When you click into another window, the pinned one stays visible above
+  it, still live.
+- **Still usable.** Click the pinned window and you're working in it again. Type, scroll,
+  click buttons. Click back into the big window and the pinned one stays on top.
 - **One shortcut.** Press **⌃⌥P** (Control-Option-P) to pin the window you're looking at.
   Press it again in that window to unpin it.
 
@@ -21,66 +23,62 @@ you work in another app.
 From this folder, in Terminal:
 
 ```sh
-swift run WindowPin --debug
+./scripts/build-app.sh
+open "build/Window Pin.app"
 ```
 
-The first time, macOS asks for **Screen Recording** permission. Window Pin needs it to show
-the live copy. Nothing is recorded or saved. Because you started the app from Terminal, the
-permission goes to **Terminal**. After allowing it, stop the app (Ctrl+C) and run the same
-command again.
+The first time, macOS asks for two permissions:
+
+1. **Screen Recording**, to show the pinned window while another window is in front.
+   Nothing is recorded or saved.
+2. **Accessibility**, to bring the pinned window forward and pass your click on to it.
+
+After allowing both, quit Window Pin from its menu bar icon and open it again.
 
 A pin icon appears in the menu bar.
 
 ## Using it
 
-- **Pin a window.** Click the pin icon and choose a window from the list, or press **⌃⌥P**
-  while the window is in front.
-- **Move and resize** the floating copy by its title bar and edges. It keeps the original
-  window's shape.
-- **Double-click** the copy to jump to the original window.
-- **Right-click** the copy to jump to the original, change its opacity, or unpin it.
-- **Unpin** with the copy's close button, from the menu bar list, or with ⌃⌥P.
+1. Resize the window you want to keep on top and move it where you want it.
+2. Click the pin icon and choose that window, or press **⌃⌥P** while it's in front.
+3. Click into your big window and work as usual. The pinned window stays on top.
+4. Click the pinned window to use it. Your click goes through to it, and you can type in it
+   right away.
 
-You can pin several windows at once. A copy closes when its original window closes.
+Right-click the pinned window while it's covering another one to change its opacity or
+unpin it. You can also unpin from the menu bar list, or with ⌃⌥P. You can pin several
+windows at once. A pin goes away when its window closes.
 
-### Optional: Accessibility
+### How it works
 
-Without Accessibility permission, double-clicking a copy brings the original's *app* to the
-front. With it, the exact window comes forward, even if it's behind other windows from the
-same app or minimised. To turn it on, choose **Allow Accessibility to jump to exact
-windows…** in the menu.
+macOS doesn't let one app keep another app's real window on top. So while the pinned window
+is behind other windows, Window Pin lays a live copy of it exactly over it, at the same
+size and position. When you click the copy, the copy hides, the real window comes forward,
+and the click is passed on to it. When you click another window, the copy covers it again.
 
-### If `swift run` fails with "Invalid manifest"
+The copy updates up to 30 times a second and follows the window when you move or resize it.
 
-That's a problem with the Command Line Tools' package manager, not with this app. Skip it
-and build the app directly instead (next section). To fix the tools themselves, reinstall
-them:
+### Running from Terminal with debug output
+
+```sh
+swift run WindowPin --debug
+```
+
+The permissions then belong to Terminal instead of Window Pin. If this fails with "Invalid
+manifest", that's a problem with the Command Line Tools' package manager, not with this
+app; use the build script above instead. To fix the tools themselves, reinstall them:
 
 ```sh
 sudo rm -rf /Library/Developer/CommandLineTools
 xcode-select --install
 ```
 
-## Build a standalone app
+## Rebuilding
 
-```sh
-./scripts/build-app.sh
-open "build/Window Pin.app"
-```
-
-Drag it to Applications if you like. The permissions then belong to Window Pin instead of
-Terminal. The build is signed only for this Mac, so after a rebuild macOS may treat it as a
-new app. If the copies stop updating, remove Window Pin from the Screen Recording list in
-System Settings → Privacy & Security and allow it again.
-
-## How it works
-
-1. The menu lists the app windows that are on screen, using the macOS window list.
-2. Pinning a window starts a ScreenCaptureKit stream of just that window, at up to 30 frames
-   a second. The stream captures the window even when other windows cover it.
-3. Each frame is shown in a small floating panel that doesn't take focus.
-4. Once a second the app checks the original window. If it was resized, the copy follows its
-   new shape. If it closed, the copy closes too.
+The build is signed only for this Mac, so after a rebuild macOS may treat it as a new app.
+If the pinned window stops showing or clicks stop going through, remove Window Pin from the
+Screen Recording and Accessibility lists in System Settings → Privacy & Security and allow
+it again.
 
 ## If something doesn't work
 
@@ -97,10 +95,12 @@ If ⌃⌥P does nothing, another app may already use that shortcut. The output t
 
 ## Known limitations
 
-- Untested on a real Mac so far. It was written without a Mac to compile on, so the first
-  build may need small fixes.
-- Minimised windows can't be pinned, and a pinned window shows its last frame while it is
-  minimised.
+- Untested on a real Mac so far, so the first build may need small fixes.
+- The first click on the pinned window is passed on as a plain click. To drag something in
+  it (or the window itself), click once, then drag.
+- When the copy is showing, it's a picture: hovering over it doesn't highlight anything
+  until you click it.
+- Both windows must be on the same desktop. Pinning over an app in full-screen mode doesn't
+  work, because that app is on a desktop of its own. Use a large normal window instead.
 - macOS 15 and later asks every so often whether Window Pin may keep capturing the screen.
   That's a system prompt for all screen capture apps.
-- The copy is view-only. To type into the window, double-click the copy to jump to it.

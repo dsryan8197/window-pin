@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if hotKey == nil { debugLog("couldn't register ⌃⌥P; another app may be using it") }
 
         if !Permissions.hasScreenRecording { Permissions.requestScreenRecording() }
+        if !Permissions.hasAccessibility { Permissions.requestAccessibility() }
 
         if debugEnabled {
             debugLog("screen recording allowed: \(Permissions.hasScreenRecording), accessibility allowed: \(Permissions.hasAccessibility)")
@@ -82,7 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(item)
         }
         if !Permissions.hasAccessibility {
-            let item = NSMenuItem(title: "Allow Accessibility to jump to exact windows…", action: #selector(requestAccessibility), keyEquivalent: "")
+            let item = NSMenuItem(title: "Accessibility: not allowed (click to fix)", action: #selector(openAccessibility), keyEquivalent: "")
             item.target = self
             menu.addItem(item)
         }
@@ -122,8 +123,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Permissions.openScreenRecordingSettings()
     }
 
-    @objc private func requestAccessibility() {
+    @objc private func openAccessibility() {
         Permissions.requestAccessibility()
+        Permissions.openAccessibilitySettings()
     }
 
     // MARK: Pinning
@@ -142,10 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func pin(_ target: AppWindow) {
-        if let existing = pins.first(where: { $0.target.id == target.id }) {
-            existing.bringToFront()
-            return
-        }
+        guard !pins.contains(where: { $0.target.id == target.id }) else { return }
         guard Permissions.hasScreenRecording else {
             showScreenRecordingAlert()
             return
@@ -159,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     return
                 }
                 guard !self.pins.contains(where: { $0.target.id == target.id }) else { return }
-                let pin = PinnedWindow(target: target, scWindow: scWindow, cascadeIndex: self.pins.count)
+                let pin = PinnedWindow(target: target, scWindow: scWindow)
                 pin.onClose = { [weak self] closed in
                     self?.pins.removeAll { $0 === closed }
                 }
