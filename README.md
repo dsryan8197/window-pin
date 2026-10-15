@@ -24,8 +24,11 @@ From this folder, in Terminal:
 
 ```sh
 ./scripts/build-app.sh
-open "build/Window Pin.app"
 ```
+
+This builds the app, puts it in your Applications folder and opens it. From then on, open
+**Window Pin** from Applications, Launchpad or Spotlight like any other app. To start it
+automatically, add it in System Settings → General → Login Items.
 
 The first time, macOS asks for two permissions:
 
@@ -75,7 +78,8 @@ xcode-select --install
 
 ## Rebuilding
 
-The build is signed only for this Mac, so after a rebuild macOS may treat it as a new app.
+Run `./scripts/build-app.sh` again. It quits the running copy, replaces the one in
+Applications and opens the new one. The build is signed only for this Mac, so after a rebuild macOS may treat it as a new app.
 If the pinned window stops showing or clicks stop going through, remove Window Pin from the
 Screen Recording and Accessibility lists in System Settings → Privacy & Security and allow
 it again.
