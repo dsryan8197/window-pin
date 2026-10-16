@@ -1,4 +1,6 @@
-# Window Pin
+# Window Pane Relief
+
+*Formerly Window Pin.*
 
 A small Mac menu bar app for when you keep switching between two windows. Pin a window and
 it stays on top of everything, so you can keep a small window over a big one and still
@@ -27,7 +29,7 @@ From this folder, in Terminal:
 ```
 
 This builds the app, puts it in your Applications folder and opens it. From then on, open
-**Window Pin** from Applications, Launchpad or Spotlight like any other app. To start it
+**Window Pane Relief** from Applications, Launchpad or Spotlight like any other app. To start it
 automatically, add it in System Settings → General → Login Items.
 
 The first time, macOS asks for two permissions:
@@ -36,7 +38,7 @@ The first time, macOS asks for two permissions:
    Nothing is recorded or saved.
 2. **Accessibility**, to bring the pinned window forward and pass your click on to it.
 
-After allowing both, quit Window Pin from its menu bar icon and open it again.
+After allowing both, quit Window Pane Relief from its menu bar icon and open it again.
 
 A pin icon appears in the menu bar.
 
@@ -55,7 +57,7 @@ windows at once. A pin goes away when its window closes.
 ### How it works
 
 macOS doesn't let one app keep another app's real window on top. So while the pinned window
-is behind other windows, Window Pin lays a live copy of it exactly over it, at the same
+is behind other windows, Window Pane Relief lays a live copy of it exactly over it, at the same
 size and position. When you click the copy, the copy hides, the real window comes forward,
 and the click is passed on to it. When you click another window, the copy covers it again.
 
@@ -67,7 +69,7 @@ The copy updates up to 30 times a second and follows the window when you move or
 swift run WindowPin --debug
 ```
 
-The permissions then belong to Terminal instead of Window Pin. If this fails with "Invalid
+The permissions then belong to Terminal instead of Window Pane Relief. If this fails with "Invalid
 manifest", that's a problem with the Command Line Tools' package manager, not with this
 app; use the build script above instead. To fix the tools themselves, reinstall them:
 
@@ -80,7 +82,7 @@ xcode-select --install
 
 Run `./scripts/build-app.sh` again. It quits the running copy, replaces the one in
 Applications and opens the new one. The build is signed only for this Mac, so after a rebuild macOS may treat it as a new app.
-If the pinned window stops showing or clicks stop going through, remove Window Pin from the
+If the pinned window stops showing or clicks stop going through, remove Window Pane Relief from the
 Screen Recording and Accessibility lists in System Settings → Privacy & Security and allow
 it again.
 
@@ -106,5 +108,5 @@ If ⌃⌥P does nothing, another app may already use that shortcut. The output t
   until you click it.
 - Both windows must be on the same desktop. Pinning over an app in full-screen mode doesn't
   work, because that app is on a desktop of its own. Use a large normal window instead.
-- macOS 15 and later asks every so often whether Window Pin may keep capturing the screen.
+- macOS 15 and later asks every so often whether Window Pane Relief may keep capturing the screen.
   That's a system prompt for all screen capture apps.

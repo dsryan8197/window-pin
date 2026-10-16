@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func setUpStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        let image = NSImage(systemSymbolName: "pin", accessibilityDescription: "Window Pin")
+        let image = NSImage(systemSymbolName: "pin", accessibilityDescription: "Window Pane Relief")
         image?.isTemplate = true
         item.button?.image = image
 
@@ -87,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.target = self
             menu.addItem(item)
         }
-        menu.addItem(NSMenuItem(title: "Quit Window Pin", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit Window Pane Relief", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
 
     private func header(_ title: String) -> NSMenuItem {
@@ -172,8 +172,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func showScreenRecordingAlert() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Window Pin needs Screen Recording permission"
-        alert.informativeText = "It uses it only to show the live view of the windows you pin. Nothing is recorded or saved.\n\nAfter allowing it in System Settings, quit and reopen Window Pin."
+        alert.messageText = "Window Pane Relief needs Screen Recording permission"
+        alert.informativeText = "It uses it only to show the live view of the windows you pin. Nothing is recorded or saved.\n\nAfter allowing it in System Settings, quit and reopen Window Pane Relief."
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Cancel")
         if alert.runModal() == .alertFirstButtonReturn {
