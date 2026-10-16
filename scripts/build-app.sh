@@ -18,7 +18,13 @@ swiftc -O \
     -o "$APP/Contents/MacOS/WindowPaneRelief"
 
 cp Resources/Info.plist "$APP/Contents/Info.plist"
-codesign --force --sign - "$APP"
+# Sign with the same local certificate every time so macOS keeps Screen Recording and Accessibility
+# across rebuilds. (Falls back to ad-hoc signing on a Mac without it; then they must be re-granted.)
+if security find-certificate -c "Daniel Ryan Local Signing" >/dev/null 2>&1; then
+    codesign --force --sign "Daniel Ryan Local Signing" "$APP"
+else
+    codesign --force --sign - "$APP"
+fi
 
 echo "Built $APP"
 
